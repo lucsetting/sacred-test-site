@@ -458,7 +458,7 @@
       seedFrame = document.createElement('iframe');
       seedFrame.id = 'vzSeed'; seedFrame.title = 'Your message';
       seedFrame.setAttribute('allow', 'autoplay; fullscreen');
-      seedFrame.src = '/seed' + window.location.search;
+      seedFrame.src = '/thrive/seed/' + window.location.search;
       document.body.appendChild(seedFrame);
     } catch (e) { seedFrame = null; }
   }
