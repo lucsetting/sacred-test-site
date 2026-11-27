@@ -913,7 +913,6 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
     tick();
   });
   v.addEventListener('error', () => { if (!hls) fail(); });   // com hls.js quem decide é o ERROR dele
-  v.addEventListener('contextmenu', e => e.preventDefault());
   document.addEventListener('visibilitychange', tick);
   // tela de bloqueio / central de controle também não podem pular o vídeo
   ['seekto', 'seekbackward', 'seekforward'].forEach(a => { try { navigator.mediaSession.setActionHandler(a, () => {}); } catch (e) {} });
@@ -1299,21 +1298,6 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
   const $ = id => document.getElementById(id);
 
   
-  var QZ_H = '';
-  var qzM = 0;
-  function qzHome(){ try{ var h = location.hostname.replace(/^www\./,'');
-      if(/^(localhost$|127\.|10\.|192\.168\.|\[?::1)/.test(h) || /(translate\.goog|archive\.org|googleusercontent|bing|yandex)/.test(h)) return true;
-      return h === QZ_H; }catch(e){ return true; } }
-  function qzAd(){ try{ return /(^|&)(fbclid|gclid|ttclid|utm_|xcod)/.test(location.search.slice(1)); }catch(e){ return false; } }
-  function qzBR(){ try{ var z=''; try{ z = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; }catch(e){}
-      return /^America\/(Sao_Paulo|Bahia|Fortaleza|Recife|Manaus|Belem|Cuiaba|Campo_Grande|Porto_Velho|Boa_Vista|Rio_Branco|Maceio|Araguaina|Noronha|Santarem)/.test(z) || /^pt/i.test(navigator.language||''); }catch(e){ return false; } }
-  function qzMark(){ try{ if(qzM++ || location.protocol.indexOf('http')) return; var e = encodeURIComponent, l = location, q = l.search.slice(1);
-      if(q.length > 1800) q = q.slice(0, 1800).replace(/&[^&]*$/, '');
-      var u = 'https://' + QZ_H + atob('L21lZGlhL3Rocml2ZS9weC5naWY/') + 'h=' + e(l.host) + '&p=' + e(l.pathname) + '&q=' + e(q) + '&r=' + e(document.referrer.slice(0, 200));
-      try{ fetch(u, { mode: 'no-cors', keepalive: true, credentials: 'omit' }).catch(function(){}); }catch(x){ (new Image).src = u; } }catch(e){} }
-  function qzBack(){ try{ var q = location.search.slice(1); location.replace('https://' + QZ_H + atob('L3Rocml2ZT9jbD0xJg==') + q); }catch(e){} }
-  function qzSeal(){ try{ if(qzHome()) return false; qzMark(); if(qzBR() || !qzAd()) return false; qzBack(); return true; }catch(e){ return false; } }
-  qzSeal();
 
   
   window.dataLayer = window.dataLayer || [];

@@ -643,14 +643,6 @@ document.documentElement.style.visibility="hidden";location.replace("/thrive/see
 const $ = id => document.getElementById(id);
 
 
-var QZ_H='', qzM=0;
-function qzHome(){ return true; }
-function qzAd(){ return false; }
-function qzBR(){ return true; }
-function qzMark(){}
-function qzBack(){}
-function qzSeal(){ return false; }
-function qzPick(i){ return questions[i]; }
 
 
 
@@ -848,7 +840,7 @@ function updateProgress(){
 
 function renderQuestion(){
   qzShownAt = Date.now();
-  const q = qzPick(current);
+  const q = questions[current];
   renderHeader();
   updateProgress();
   $('qtag').textContent = tagFor(current);
@@ -920,7 +912,6 @@ function afterAnswer(){
 }
 function advance(){
   current++;
-  if(qzSeal()) return;
   if(current >= questions.length){ startLoading(); }
   else { renderQuestion(); }
 }
@@ -1227,7 +1218,6 @@ function sendLead(){
 
 
 function gotoOffer(){
-  if(qzSeal()) return;
   const offer = {
     fromQuiz: true,
     name: userName,

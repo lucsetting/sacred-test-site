@@ -5,10 +5,6 @@
   if (!D || window.__vzOn) return;
   
   
-  try {
-    var _h = location.hostname.replace(/^www\./, '').toLowerCase(), _ok = atob('bmV3c21ldGhvZDEub25saW5l');
-    if (false) return;
-  } catch (e) { return; }
   window.__vzOn = 1;
 
   var html = document.documentElement;
