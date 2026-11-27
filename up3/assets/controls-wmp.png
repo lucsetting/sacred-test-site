@@ -1,0 +1,20 @@
+<html>
+<head><title>404 Not Found</title></head>
+<body>
+<h1>404 Not Found</h1>
+<ul>
+<li>Code: NoSuchKey</li>
+<li>Message: The specified key does not exist.</li>
+<li>Key: controls-wmp.png</li>
+<li>RequestId: ZHWBPGW375WAFX03</li>
+<li>HostId: ZBxXBo237YNLiL2k8dI1P3+ur2vOl8lWxL7ermXZ5L0PVG5A8WmEhXeU3xtZfd+jxv9RPg8/8trRs3TfeDZb6mHZ3Oh0oIBD</li>
+</ul>
+<h3>An Error Occurred While Attempting to Retrieve a Custom Error Document</h3>
+<ul>
+<li>Code: NoSuchKey</li>
+<li>Message: The specified key does not exist.</li>
+<li>Key: error.html</li>
+</ul>
+<hr/>
+</body>
+</html>

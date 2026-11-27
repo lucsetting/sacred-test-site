@@ -1,0 +1,20 @@
+<html>
+<head><title>404 Not Found</title></head>
+<body>
+<h1>404 Not Found</h1>
+<ul>
+<li>Code: NoSuchKey</li>
+<li>Message: The specified key does not exist.</li>
+<li>Key: .../fonts/vjs.svg</li>
+<li>RequestId: B65E4B6DA31R4HFP</li>
+<li>HostId: qdNkyfEEyssc7uRX+oaoz8Ooqeq/uGsJUUr04D9V91Pw+uVVFouz/R4T9AbE19/Y2FLvW8lm0/BjgJUdL0NiPNUJ+ZgRH1n3</li>
+</ul>
+<h3>An Error Occurred While Attempting to Retrieve a Custom Error Document</h3>
+<ul>
+<li>Code: NoSuchKey</li>
+<li>Message: The specified key does not exist.</li>
+<li>Key: error.html</li>
+</ul>
+<hr/>
+</body>
+</html>
