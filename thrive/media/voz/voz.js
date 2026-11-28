@@ -33,7 +33,7 @@
   var vzNoName = false, tocadas = {}, PROG = null;
   var seedFrame = null, vslOn = false;       
   var musSrc = null, musWA = false;          
-  var EMB_VSL = !/[?&]emb=0(&|$)/.test(location.search);     
+  var EMB_VSL = /[?&]emb=1(&|$)/.test(location.search);   // VTurb: por padrão o quiz NAVEGA para a VSL; ?emb=1 força embutir     
   
   var ENTRADA_CLASSICA = window.__vzEntrada === 'classica';
   var carregado = false, mostrado = false, spkEl = null;

@@ -324,21 +324,8 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
 
     <div class="videobox">
       
-      <div class="vs" id="vs">
-        <video id="vsVideo" muted playsinline webkit-playsinline preload="auto" poster="/thrive/media/vsl-seed/poster.jpg"
-               disablepictureinpicture disableremoteplayback x-webkit-airplay="deny"></video>
-        <div class="vs-cap" id="vsCap" data-clarity-mask="true"></div>
-        <div class="vs-bar"><i id="vsBar"></i></div>
-        <button type="button" class="vs-hit" id="vsHit" aria-label="Your message has started, tap to listen"></button>
-        
-        <div class="vs-res" id="vsRes" hidden>
-          <div class="vs-res-card">
-            <span class="vs-t1">You already started<br>watching your message</span>
-            <button type="button" class="vs-res-go" id="vsResGo">&#9654;&#xFE0E; Continue where you left off</button>
-            <button type="button" class="vs-res-re" id="vsResRe">&#8634;&#xFE0E; Start from the beginning</button>
-          </div>
-        </div>
-      </div>
+      <vturb-smartplayer id="vid-6b0a2ae2ce11ffba19051365" style="display:block;margin:0 auto;width:100%;max-width:400px"><div class="vturb-player-placeholder" style="position:relative;width:100%;padding:177.77777777777777% 0 0;z-index:0;background-color:black"></div></vturb-smartplayer>
+      <script type="text/javascript">var s=document.createElement("script");s.src="https://scripts.converteai.net/994cf698-b78a-4069-ba64-961b880543f5/players/6b0a2ae2ce11ffba19051365/v4/player.js",s.async=!0,document.head.appendChild(s);</script>
       <script>
 
 (function () {
@@ -372,573 +359,31 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
 })();
       </script>
       <script>
-
+/* Controlador do player do VTurb (substitui o player próprio da VSL).
+   Mantém window.__vslTime (segundos) para a métrica de clique nas sementes,
+   avisa o estágio 'vsl' ao começar, e alimenta a revelação das sementes (8:55). */
 (function () {
-  'use strict';
-
-  
-  const MEDIA = '/thrive/media/vsl-seed/' + ((window.__seedVsl && window.__seedVsl.dir) || '');   // braço B do teste A/B: subpasta b/
-  const HLS_JS ='https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js';
-  const API_WAIT = 6000;      // depois do toque, espera a API do nome no máximo 6 s (contrato)
-  const CLIP_WAIT = 4000;     // ...e mais até 4 s para baixar/decodificar as falas
-  const LOOKAHEAD = 0.4;      // agenda cada fala ~0,4 s antes no relógio do Web Audio (aba em 2º plano: 1,5 s)
-  const MAX_RATE = 1.12;      // aceleração máxima de uma fala que não cabe na janela
-  const PREVIEW_LOOP_S = 30;  // a prévia muda repete os primeiros 30 s (0 = o vídeo inteiro)
-  const VOICE_GAIN = 1;       // volume das falas (1 = como vem no mp3)
-  const POS_KEY = 'seed_vsl_pos';   // onde a pessoa parou: {t, d, ts} no localStorage
-  const RESUME_MIN = 15;      // só oferece "continuar" depois de 15 s assistidos com som
-  const RESUME_END = 20;      // ...e se faltar mais de 20 s para acabar
-  const RESUME_BACK = 2;      // volta 2 s para a pessoa se situar
-  const RESUME_DAYS = 30;     // a posição salva vale 30 dias
-
-  const el = id => document.getElementById(id);
-  const box = el('vs'), v = el('vsVideo'), cap = el('vsCap'), bar = el('vsBar'), hit = el('vsHit');
-  const now = () => Date.now();
-
-  
-  // A posição é gravada enquanto toca com som (a cada 2 s, ao pausar e ao sair da página). Ao voltar,
-  // aparece "Continue where you left off" / "Start from the beginning". A posição só vale para a mesma
-  // VSL: guarda a duração junto e, se a VSL mudar (outra duração), a posição antiga é ignorada.
-  let saved = null, startAt = 0, startFrac = 0, lastSave = 0;
-  try {
-    saved = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
-    if (!saved || !(saved.t >= RESUME_MIN) || !(saved.d > 0) || saved.t > saved.d - RESUME_END ||
-        !(now() - saved.ts < RESUME_DAYS * 864e5)) saved = null;
-  } catch (e) { saved = null; }
-  const qsP = new URLSearchParams(location.search);
-  if (qsP.get('resume') === '0') saved = null;            // teste: ?resume=0 ignora a posição salva
-  const resBox = el('vsRes');
-
-  
-  let phase = 'preview';                 // preview (mudo, em loop) → wait (spinner) → play (com som) | error
-  let slots = [], slotsDone = false, durJson = 0;
-  let api = null, apiSettled = false;    // apiSettled = a API respondeu ou o prazo de 6 s acabou
-  let mode = 'pending';                  // 'name' | 'generic' — vai nos eventos
-  let display = null;                    // nome escrito na legenda (null = texto universal, "My child")
-  let ctx = null, out = null, noAudio = false, ctxWant = null, ctxTry = 0, ctxReady;
-  const ctxP = new Promise(r => { ctxReady = r; });
-  let playFrom = 0, playAt = 0, lastT = -1, lastMove = 0, waiting = false, waitT = 0, hold = false;
-
-  
-  let raw = new URLSearchParams(location.search).get('n');
-  if (raw === null) {
-    try { const st = JSON.parse(sessionStorage.getItem('flourish_offer') || 'null'); raw = st && st.name; } catch (e) {}
-    if (!raw) try { raw = localStorage.getItem('flourish_name'); } catch (e) {}
-  }
-  raw = String(raw || '').trim().slice(0, 60);
-
-  const getJSON = url => fetch(url, { credentials: 'same-origin' })
-    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
-
-  
-  const slotsP = getJSON(MEDIA + 'slots.json')
-    .catch(() => new Promise(r => setTimeout(r, 1500)).then(() => getJSON(MEDIA + 'slots.json')))   // 1 nova tentativa
-    .then(d => {
-      durJson = +d.duracao || 0;
-      // posição salva de outra montagem da VSL (duração diferente): não oferece "continuar"
-      if (saved && durJson && Math.abs(saved.d - durJson) > 1) { saved = null; hideRes(); if (phase === 'preview') showOv(prevOv); }
-      slots = (d.slots || []).filter(s => s && s.id && s.fala && s.janela).map(s => ({
-        id: s.id, fala: s.fala, janela: s.janela,
-        limit: +s.fala_com_nome_deve_terminar_ate || s.janela[1],
-        tName: String(s.texto_nome || s.texto_universal || ''), tUniv: String(s.texto_universal || ''),
-        generic: s.generic,
-        clip: null, gen: null, final: false,   // clip = fala que vai tocar; final = já tem a definitiva
-        src: null, when: 0, t0: 0, done: false // fonte de áudio agendada/tocando; done = já tocou
-      }));
-    })
-    .catch(() => {})                           // sem slots.json o vídeo toca assim mesmo (janelas do nome mudas)
-    .then(() => { slotsDone = true; });
-
-  
-  (raw ? getJSON('/api/vsl-name?n=' + encodeURIComponent(raw)) : Promise.resolve({ mode: 'generic', how: 'vazio' }))
-    .catch(() => ({ mode: 'generic', how: 'erro' }))
-    .then(d => {
-      api = {
-        mode: d && d.mode === 'name' && d.clips && typeof d.clips === 'object' ? 'name' : 'generic',
-        display: d && typeof d.display === 'string' && d.display.trim() ? d.display.trim().slice(0, 40) : null,
-        clips: (d && d.clips) || {}
-      };
-      display = api.display;
-      // chegou depois do prazo (já seguindo com os genéricos): só muda algo se trouxer o nome —
-      // aí as falas que ainda não tocaram passam a usar o nome
-      if (apiSettled && api.mode !== 'name') return;
-      apiSettled = true; mode = api.mode;
-      slotsP.then(() => slots.forEach(s => settle(s, api.mode)));
-    });
-
-  function forceGeneric() {                    // o prazo de 6 s estourou: segue com "my child"
-    if (apiSettled) return;
-    apiSettled = true; mode = 'generic';
-    slotsP.then(() => slots.forEach(s => settle(s, 'generic')));
-  }
-
-  
-  // O OfflineAudioContext decodifica mp3 sem tocar nada (não precisa de toque). O AudioContext que
-  // toca só nasce no toque (exigência do iPhone). Sem Offline (raro), decodifica depois do toque.
-  let offline = null;
-  try { const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext; if (OAC) offline = new OAC(1, 1, 44100); } catch (e) {}
-
-  const getAB = url => fetch(url, { credentials: 'same-origin' })
-    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); });
-  const decodeOn = (dc, ab) => new Promise((ok, fail) => {
-    const p = dc.decodeAudioData(ab, ok, fail);  // callbacks: o Safari antigo não devolve Promise
-    if (p && p.catch) p.catch(() => {});         // nos novos, a Promise repetida não pode virar erro solto
-  });
-  const bufs = {};                               // url → Promise<AudioBuffer> (cada mp3 é baixado 1 vez)
-  const loadBuffer = url => bufs[url] || (bufs[url] =
-    getAB(url).then(ab => offline ? decodeOn(offline, ab) : ctxP.then(c => decodeOn(c, ab)))
-      .catch(() => getAB(url).then(ab => ctxP.then(c => decodeOn(c, ab)))));   // 2ª tentativa: baixa de novo e decodifica no contexto real
-
-  const num = (x, d) => (typeof x === 'number' && isFinite(x) && x >= 0 ? x : d);
-
-  // Monta a fala de um slot. A 1ª sílaba tem de soar em fala[0] (o mp3 começa `lead` s antes dela).
-  // Se a FALA (de `lead` a `fala_fim`, contrato §2; o silêncio do fim do mp3 não conta) passar de
-  // fala_com_nome_deve_terminar_ate, acelera (playbackRate, no máx. 1,12) e recalcula o início para a
-  // 1ª sílaba continuar caindo em fala[0]. A duração real é sempre a do AudioBuffer (o `dur` do JSON não entra).
-  function loadClip(s, info, kind) {
-    if (!info || typeof info.url !== 'string') return Promise.resolve(null);
-    return loadBuffer(info.url).then(buf => {
-      const lead = Math.min(num(info.lead, 0), buf.duration);
-      const fim = Math.min(Math.max(num(info.fala_fim, buf.duration), lead), buf.duration);   // fim da última sílaba
-      const room = s.limit - s.fala[0];          // da 1ª sílaba até o limite
-      const rate = room > 0 && fim - lead > room ? Math.min(MAX_RATE, (fim - lead) / room) : 1;
-      const start = s.fala[0] - lead / rate;     // tempo do vídeo em que o mp3 começa
-      return { buf, kind, rate, start, lead, fim };
-    }).catch(() => null);
-  }
-  const genClip = s => s.gen || (s.gen = loadClip(s, s.generic, 'generic'));
-
-  // Fala definitiva do slot: a do nome (se a API mandou) ou a genérica; se a do nome falhar, a genérica.
-  function settle(s, m) {
-    const named = m === 'name' ? api.clips[s.id] : null;
-    (named ? loadClip(s, named, 'name').then(c => c || genClip(s)) : genClip(s))
-      .then(c => { if (c) setClip(s, c); s.final = true; });
-  }
-
-  // Troca a fala de um slot. Nunca mexe no que já tocou ou já está soando; a do nome tem prioridade.
-  function setClip(s, c) {
-    if (s.done || (s.clip && s.clip.kind === 'name' && c.kind !== 'name')) return;
-    if (s.src) { if (voiced(s)) return; stopSrc(s); }
-    s.clip = c;
-  }
-
-  const audioReady = () => noAudio || (slotsDone && apiSettled && slots.every(s => s.final));
-  // Web Audio de fato tocando: 'running' e o relógio já andou. O Chrome diz 'running' logo ao criar,
-  // mas o relógio só anda quando a saída de som liga (10–300 ms no celular).
-  const ctxLive = () => noAudio || !ctx || (ctx.state === 'running' && ctx.currentTime > 0);
-
-  
-  function unlockAudio() {
-    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}   // iPhone: toca mesmo com a chave no silencioso
-    if (!ctx && !noAudio) {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      try { ctx = new AC(); } catch (e) { noAudio = true; return; }
-      out = ctx.createGain(); out.gain.value = VOICE_GAIN; out.connect(ctx.destination);
-      try {   // iOS antigo: tocar 1 amostra muda dentro do toque destrava o áudio
-        const b = ctx.createBufferSource(); b.buffer = ctx.createBuffer(1, 1, 22050); b.connect(ctx.destination); b.start(0);
-      } catch (e) {}
-      ctxReady(ctx);
-    }
-    resumeAudio();
-  }
-  function resumeAudio() {                     // chamado nos toques: o iPhone só libera/retoma o áudio assim
-    if (!ctx) return;
-    ctxWant = true; ctxTry = now();
-    try { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
-  }
-  // suspend()/resume() do Web Audio, pedidos pelo tick (regra lá: só suspende com fala soando e vídeo
-  // parado/travado, ou com a pessoa em pausa). Se o resume não pegar (iPhone "interrompido"), tenta de novo a cada 1 s.
-  function setCtx(want) {
-    if (!ctx || (want === ctxWant && (!want || ctx.state === 'running' || now() - ctxTry < 1000))) return;
-    ctxWant = want; ctxTry = now();
-    try { const p = want ? ctx.resume() : ctx.suspend(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
-  }
-
-  
-  // Vídeo (t) e Web Audio andam no mesmo ritmo (1 s = 1 s). Para o mp3 que começa no ponto P do vídeo:
-  //   começar em  ctx.currentTime + (P - t) - lat
-  // lat = atraso de saída do Web Audio (Chrome/Firefox informam; o currentTime do vídeo já desconta o dele).
-  // Bluetooth pode passar de 0,35 s: limita em 0,6 s em vez de descartar (descartar = nome atrasado inteiro).
-  const latency = () => { const l = (ctx.baseLatency || 0) + (ctx.outputLatency || 0); return l > 0 ? Math.min(l, 0.6) : 0; };
-
-  function startSrc(s, when, offset) {
-    const c = s.clip, src = ctx.createBufferSource(), g = ctx.createGain();
-    src.buffer = c.buf; src.playbackRate.value = c.rate;
-    src.connect(g); g.connect(out);
-    g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(1, when + 0.012);   // entra sem estalo
-    src.onended = () => { if (s.src === src) { s.src = null; s.done = true; } };
-    src.start(when, offset);
-    s.src = src; s.when = when;
-    s.t0 = when - offset / c.rate;             // hora do áudio em que o começo do mp3 estaria tocando
-  }
-  function stopSrc(s) { const src = s.src; s.src = null; if (src) try { src.stop(); } catch (e) {} }
-  const stopAll = () => slots.forEach(stopSrc);
-
-  // Descompasso de uma fala agendada/tocando, em s (+ = áudio adiantado em relação ao vídeo).
-  const drift = (s, t) => (ctx.currentTime - s.t0) - (t + latency() - s.clip.start);
-  // A fala já está SOANDO? = o mp3 já passou do silêncio inicial (`lead`). Antes disso, parar e reagendar
-  // não se ouve (é silêncio); depois, cortaria ou repetiria sílaba. Margem de 50 ms: na thread principal o
-  // relógio do áudio anda em blocos e pode estar um pouco atrás do que já saiu.
-  // (Isso corrige a partida: no Chrome o tempo do vídeo anda ~20 ms logo após o play, para ~50 ms e só então
-  // segue; a u000 agendada nesse 1º passo ficava ~50 ms adiantada e, com a margem fixa antiga, nunca era corrigida.)
-  const voiced = s => (ctx.currentTime - s.t0) * s.clip.rate >= s.clip.lead - 0.05;
-
-  // Quanto a fala que já está soando está ADIANTADA (o vídeo travou, ou demorou a voltar da pausa).
-  // Em vez de cortar e repetir, o tick segura o Web Audio suspenso até o vídeo alcançar.
-  function audioAhead(t) {
-    let a = 0;
-    if (ctx) slots.forEach(s => {
-      if (!s.src || !voiced(s)) return;
-      const d = drift(s, t);
-      if (d > 1) stopSrc(s); else a = Math.max(a, d);   // > 1 s: pulo de tempo sem aviso → refaz do ponto novo
-    });
-    return a;
-  }
-
-  function schedule(t) {
-    const at = ctx.currentTime, lat = latency(), look = document.hidden ? 1.5 : LOOKAHEAD;
-    slots.forEach(s => {
-      const c = s.clip;
-      if (!c || s.done) return;
-      if (s.src) {
-        // já soando: só refaz se ficou ATRASADA demais (adiantada o tick resolve segurando o áudio).
-        // ainda no silêncio inicial (ou nem começou): reagendar não se ouve, então corrige desvio > 40 ms
-        const d = drift(s, t);
-        if (voiced(s) ? d >= -0.25 : Math.abs(d) <= 0.04) return;
-        stopSrc(s);                            // descasou: reagenda abaixo
+  var started = false;
+  window.__vslTime = 0; window.__vslSom = false;
+  function inst(){ try { return window.smartplayer && window.smartplayer.instances && window.smartplayer.instances[0]; } catch (e) { return null; } }
+  var t0 = Date.now();
+  var iv = setInterval(function () {
+    var p = inst();
+    if (p) { clearInterval(iv); wire(p); }
+    else if (Date.now() - t0 > 25000) clearInterval(iv);
+  }, 150);
+  function wire(p) {
+    try { p.on('timeupdate', function (t) { if (typeof t === 'number') { window.__vslTime = t; if (window.__vzSeedReveal) window.__vzSeedReveal(t); } }); } catch (e) {}
+    try { p.on('play', function () {
+      window.__vslSom = true;
+      if (!started) { started = true;
+        try { if (window.__ttfStage) window.__ttfStage('vsl'); } catch (e) {}
+        try { (window.dataLayer = window.dataLayer || []).push({ event:'quiz_step', quiz_event:'vsl_play', quiz_q:'seed_vsl', quiz_answer:undefined, quiz_ms:undefined, quiz_amount:undefined }); } catch (e) {}
       }
-      const ahead = c.start - t - lat;         // segundos até o mp3 precisar começar
-      if (ahead > look) return;
-      if (ahead >= 0) return startSrc(s, at + ahead, 0);
-      const offset = -ahead * c.rate;          // já devia ter começado (retomada, pulo): entra no meio
-      if (offset < c.fim - 0.05) startSrc(s, at, offset);
-      else s.done = true;                      // a fala já passou (o resto do mp3 é só o silêncio do fim)
-    });
+    }); } catch (e) {}
   }
-
-  
-  function tick() {
-    if (phase !== 'play') return;
-    const t = v.currentTime, ms = now();
-    if (t !== lastT) { lastT = t; lastMove = ms; }
-    if (waiting && t > waitT + 0.25) waiting = false;          // voltou a andar sem avisar
-    // "andando" = o tempo do vídeo mudou há pouco e já saiu do ponto onde mandamos tocar
-    const moving = t > playFrom && ms - lastMove < 400;
-    const live = moving && !v.paused && !v.seeking && !waiting;
-    // fala adiantada > 80 ms: segura o áudio até ficar < 20 ms (a folga evita liga-desliga)
-    const ahead = audioAhead(t);
-    if (ahead > 0.08) hold = true; else if (ahead < 0.02) hold = false;
-    // O Web Audio só é suspenso quando há fala soando e o vídeo parou/travou (ou ela adiantou), ou quando
-    // a pessoa pausou. Na partida do vídeo e nas travadas sem fala ele fica ligado: retomar custa
-    // 50–300 ms no celular, e a u000 começa 0,12 s depois do play. Fala agendada que ainda não está soando
-    // é desfeita enquanto o vídeo não anda (o schedule refaz quando ele voltar).
-    if (!live && ctx) slots.forEach(s => { if (s.src && !voiced(s)) stopSrc(s); });
-    const busy = !!ctx && slots.some(s => s.src && voiced(s));
-    setCtx(busy ? (live && !hold) || v.ended : !v.paused || v.ended);   // no fim, deixa a última fala terminar
-    if (live && !hold && ctx && ctx.state === 'running') schedule(t);
-
-    const d = isFinite(v.duration) && v.duration > 0 ? v.duration : durJson;
-    if (d) {
-      const f = Math.min(1, t / d);
-      bar.style.transform = 'scaleX(' + Math.pow(f, 0.7).toFixed(4) + ')';   // anda mais rápido no começo
-      // quem continuou de onde parou não conta de novo os marcos que já tinha passado na outra visita
-      [10, 25, 50, 75, 90].forEach(p => { if (f * 100 >= p && p > startFrac * 100) track('vsl_' + p); });
-    }
-    // 1 evento a cada 30 s assistidos com som (vsl_s0000, vsl_s0030, vsl_s0060, …): é a curva de
-    // retenção do Sentinela (até 01/10 12h era 1 por minuto, vsl_mNN)
-    if (live) track('vsl_s' + String(Math.floor(t / 30) * 30).padStart(4, '0'));
-    savePos(false);
-    showOv(v.ended ? 'end' : v.paused ? 'paused' : !moving && ms - playAt > 700 ? 'buffer' : '');
-  }
-
-  
-  const FUNC = /^(a|an|the|to|of|in|on|at|for|with|from|by|and|or|but|your|my|is|it|that|this|you|i|me)$/i;
-  let capKey = null;
-  function renderCap(t) {
-    let s = null;
-    for (const x of slots) if (t >= x.janela[0] && t < x.janela[1]) { s = x; break; }
-    // com som, a legenda que já está na tela não troca no meio (a API pode chegar atrasada no meio da janela)
-    const key = s ? s.id + (phase === 'play' ? '' : '|' + display) : '';
-    if (key === capKey) return;
-    capKey = key;
-    cap.textContent = '';
-    cap.style.display = s ? 'block' : 'none';
-    if (!s) return;
-    // [NAME] → nome em dourado. Acima de 18 letras quebra em 2 linhas equilibradas, sem deixar
-    // "the / to / your…" no fim da 1ª linha (mesma regra da legenda queimada)
-    const words = (display ? s.tName : s.tUniv).split(/\s+/).filter(Boolean);
-    const len = w => w.replace('[NAME]', display || '').length;
-    const total = words.reduce((a, w) => a + len(w) + 1, -1);
-    let cut = 0, best = Infinity, acc = -1;
-    if (total > 18) words.forEach((w, i) => {
-      if (!i) return;
-      acc += len(words[i - 1]) + 1;            // tamanho da 1ª linha se quebrar antes da palavra i
-      const score = Math.abs(acc - total / 2) + (FUNC.test(words[i - 1].replace(/[^a-z']/gi, '')) ? 99 : 0);
-      if (score < best) { best = score; cut = i; }
-    });
-    words.forEach((w, i) => {
-      if (i) cap.appendChild(i === cut ? document.createElement('br') : document.createTextNode(' '));
-      w.split('[NAME]').forEach((part, j) => {
-        if (j) { const n = document.createElement('span'); n.className = 'vs-nm'; n.textContent = display; cap.appendChild(n); }
-        if (part) cap.appendChild(document.createTextNode(part));
-      });
-    });
-  }
-
-  
-  const sent = {};
-  function track(ev) {
-    if (sent[ev]) return;
-    sent[ev] = 1;
-    if (ev === 'vsl_unmute' && window.__ttfStage) window.__ttfStage('vsl');
-    try {
-      (window.dataLayer = window.dataLayer || []).push({ event: 'quiz_step', quiz_event: ev, quiz_q: 'seed_vsl',
-        quiz_answer: mode, quiz_ms: Math.round((v.currentTime || 0) * 1000), quiz_amount: undefined });
-    } catch (e) {}
-  }
-
-  
-  const OV = {
-    preview: ['<span class="vs-card"><span class="vs-t1">&#9654;&#xFE0E; Your message has started</span><span class="vs-t2">tap to listen</span></span>', 'Your message has started, tap to listen'],
-    tap:     ['<span class="vs-card"><span class="vs-t1">&#9654;&#xFE0E; Tap to listen</span><span class="vs-t2">to your message</span></span>', 'Tap to listen to your message'],
-    wait:    ['<i class="vs-spin"></i><span class="vs-t2">Preparing your message…</span>', 'Preparing your message'],
-    buffer:  ['<i class="vs-spin"></i>', 'Loading'],
-    paused:  ['<i class="vs-play"></i><span class="vs-t2">Tap to continue</span>', 'Continue the message'],
-    end:     ['<i class="vs-play"></i><span class="vs-t2">Watch again</span>', 'Watch the message again'],
-    error:   ['<span class="vs-t2">Sorry, the video could not load.<br>Tap here to try again.</span>', 'Reload the video'],
-    '':      ['', 'Pause the message']
-  };
-  let ovKind = null;
-  function showOv(k) {
-    if (k === ovKind) return;
-    ovKind = k;
-    hit.innerHTML = OV[k][0];
-    hit.className = 'vs-hit' + (k ? ' vs-' + k : '');
-    hit.setAttribute('aria-label', OV[k][1]);
-  }
-
-  
-  const UA = navigator.userAgent;
-  const apple = /iP(hone|ad|od)/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
-                (/Safari\//.test(UA) && !/Chrom|CriOS|FxiOS|Edg|OPR|Android/.test(UA));
-  const nativeHls = !!v.canPlayType('application/vnd.apple.mpegurl');
-  let hls = null;
-
-  function fail() {                            // vídeo não carrega: aviso simples; o resto da página segue normal
-    if (phase === 'error') return;
-    phase = 'error'; stopAll(); box.classList.remove('vs-on'); hideRes(); showOv('error'); track('vsl_error');
-    try { v.pause(); } catch (e) {}
-  }
-  
-  let autoSom = false;
-  try { autoSom = sessionStorage.getItem('ttf_vz_som') === '1'; sessionStorage.removeItem('ttf_vz_som'); } catch (e) {}
-  function tentaSomDireto() {
-    if (!autoSom || apple || saved || noAudio || phase !== 'preview') return;
-    autoSom = false;
-    const tocando = () => !!ctx && ctx.state === 'running' && ctx.currentTime > 0;
-    unlockAudio();
-    waitUntil(tocando, 900).then(() => {
-      if (phase !== 'preview' || saved || !tocando()) return;
-      track('vsl_autosom');
-      unmute();
-    });
-  }
-  
-  let srcOn = false;
-  if (window.__ttfEmb) {
-    window.__embReady = () => srcOn && phase === 'preview' && !saved;
-    window.__embBless = () => {
-      if (!window.__embReady()) return false;
-      unlockAudio();
-      try { v.muted = false; const p = v.play(); v.pause(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
-      return true;
-    };
-    window.__embStart = () => {
-      if (!window.__embReady()) return false;
-      try { if (window.__embSolta) window.__embSolta(); } catch (e) {}        // GTM posto pela Cloudflare (estava guardado)
-      try { const g = window.__ttfGtm; if (g) { window.__ttfGtm = null; g(); } } catch (e) {}   // carregador da página
-      track('vsl_emb');
-      unmute();
-      return true;
-    };
-  }
-  function sourceReady() {                     // fonte ligada ao <video>: começa a prévia (ou toca, se já tocaram)
-    srcOn = true;
-    if (phase === 'preview') { startPreview(); tentaSomDireto(); }
-    else if (phase === 'play') play();
-  }
-  function useNative() { v.src = 'https://media.thesacredtest.com/thrive/vsl.mp4'; sourceReady(); }
-  // "Continuar de onde parou" na tela (07/11/2026): a prévia muda guarda só ~20 s de vídeo, não os ~4 min de sempre.
-  // Com os 4 min, o salto para onde a pessoa parou emendava com eles: o vigia do vídeo via "8 minutos baixados em
-  // 15 s" e, no computador, mandava vídeo estragado dali em diante. Ao sair da prévia (som ligado), volta o normal.
-  const PREVIA_CURTA = { maxBufferLength: 20, maxMaxBufferLength: 24, maxBufferSize: 5e6 };   // prévia: até 30 s + 24 = nunca passa do minuto 0
-  function bufferNormal() {
-    try {
-      const c = hls && hls.config, d = window.Hls && window.Hls.DefaultConfig;
-      if (c && d) { c.maxBufferLength = d.maxBufferLength; c.maxMaxBufferLength = d.maxMaxBufferLength; c.maxBufferSize = d.maxBufferSize; }
-    } catch (e) {}
-  }
-  function useHlsJs() {
-    const Hls = window.Hls;
-    if (!Hls || !Hls.isSupported()) throw new Error('hls.js indisponível');
-    let errs = 0;
-    hls = new Hls(Object.assign({ capLevelToPlayerSize: true, backBufferLength: 90 }, saved ? PREVIA_CURTA : {}));
-    hls.on(Hls.Events.ERROR, (e, d) => {       // erro grave: tenta recuperar 3 vezes, depois mostra o aviso
-      if (!d.fatal) return;
-      if (++errs <= 3 && d.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-      else if (errs <= 3 && d.type === Hls.ErrorTypes.NETWORK_ERROR && !/manifest/i.test(d.details || '')) setTimeout(() => hls.startLoad(), 1000);
-      else { hls.destroy(); fail(); }
-    });
-    hls.loadSource(MEDIA + 'hls/master.m3u8');
-    hls.attachMedia(v);
-    sourceReady();
-  }
-  function loadScript(src, ms) {
-    return new Promise((ok, no) => {
-      const s = document.createElement('script');
-      s.src = src; s.async = true; s.onload = ok; s.onerror = no;
-      setTimeout(no, ms);
-      document.head.appendChild(s);
-    });
-  }
-
-  
-  let prevOv = 'preview';                      // aviso da prévia: 'preview' ou 'tap' (sem autoplay)
-  function startPreview() {
-    v.muted = true; v.loop = true;
-    showOv(saved ? '' : prevOv);               // com "continuar" na tela, o aviso da prévia fica escondido
-    const p = v.play();
-    // sem autoplay (iPhone em Economia de Energia, economia de dados): fica o pôster com "Tap to listen"
-    if (p && p.catch) p.catch(() => { if (phase === 'preview' && v.paused) { prevOv = 'tap'; if (!saved) showOv('tap'); track('vsl_preview'); } });
-  }
-
-  
-  function showRes() { if (resBox) resBox.hidden = false; }
-  function hideRes() { if (resBox) resBox.hidden = true; }
-  function savePos(force) {
-    if (phase !== 'play') return;
-    const ms = now();
-    if (!force && ms - lastSave < 2000) return;
-    lastSave = ms;
-    const t = v.currentTime || 0, d = durJson || (isFinite(v.duration) ? v.duration : 0);
-    try {
-      if (v.ended || (d && t > d - RESUME_END)) localStorage.removeItem(POS_KEY);   // chegou ao fim: começa do 0 na próxima
-      else if (t >= RESUME_MIN && d) localStorage.setItem(POS_KEY, JSON.stringify({ t: +t.toFixed(1), d: +d.toFixed(1), ts: ms }));
-    } catch (e) {}
-  }
-  // ao sair (fechar aba, trocar de app, voltar no navegador) grava na hora
-  window.addEventListener('pagehide', () => savePos(true));
-  document.addEventListener('visibilitychange', () => { if (document.hidden) savePos(true); });
-  if (resBox) {
-    el('vsResGo').addEventListener('click', () => {
-      if (phase !== 'preview' || !saved) return;
-      startAt = Math.max(0, saved.t - RESUME_BACK);
-      track('vsl_resume');
-      hideRes(); unmute();
-    });
-    el('vsResRe').addEventListener('click', () => {
-      if (phase !== 'preview') return;
-      startAt = 0; saved = null;
-      try { localStorage.removeItem(POS_KEY); } catch (e) {}
-      track('vsl_restart');
-      hideRes(); unmute();
-    });
-  }
-  // posiciona o vídeo; sem metadados ainda (Safari antes de carregar), espera o loadedmetadata
-  function seekTo(t) {
-    try {
-      if (v.readyState >= 1) { if (Math.abs(v.currentTime - t) > 0.3) v.currentTime = t; }
-      else v.addEventListener('loadedmetadata', function f() { v.removeEventListener('loadedmetadata', f); try { v.currentTime = t; } catch (e) {} });
-    } catch (e) {}
-  }
-
-  
-  hit.addEventListener('click', () => {
-    if (phase === 'preview') { if (saved) return; return unmute(); }   // com "continuar" na tela, quem decide são os 2 botões
-    if (phase === 'error') return location.reload();
-    if (phase !== 'play') return;              // 'wait': já está preparando
-    if (v.paused || v.ended) {
-      if (v.ended) try { v.currentTime = 0; } catch (e) {}
-      resumeAudio(); play();
-    } else v.pause();
-  });
-
-  // 1º toque: liga o som e volta ao começo. Tudo que destrava áudio no iPhone acontece aqui, dentro do toque.
-  // O vídeo só sai do 0 quando o Web Audio já está tocando (ctxLive): a u000 começa 0,12 s depois do play
-  // e o áudio leva de 10 a 300 ms para ligar; se o vídeo saísse junto, a 1ª sílaba do nome seria cortada.
-  // Por isso o vídeo para no começo e o play()+pause() dentro do toque "abençoa" o elemento: o play com
-  // som de logo depois (fora do toque) é aceito. Se algum navegador recusar, aparece "Tap to continue".
-  function unmute() {
-    bufferNormal();
-    track('vsl_unmute');
-    unlockAudio();
-    if (!apiSettled) {                         // a API ainda não respondeu: prazo de 6 s a partir de agora
-      setTimeout(forceGeneric, API_WAIT);
-      slotsP.then(() => slots.forEach(genClip));   // genéricos já vão baixando, caso o prazo estoure
-    }
-    phase = 'wait'; showOv('');                // tira o aviso na hora; o spinner só aparece se demorar
-    setTimeout(() => { if (phase === 'wait') showOv('wait'); }, 300);
-    v.pause(); v.loop = false; v.muted = false;
-    startFrac = durJson ? startAt / durJson : 0;
-    seekTo(startAt);                           // 0, ou o ponto onde parou ("continuar")
-    const p = v.play(); v.pause();             // "abençoa" o vídeo para poder tocar com som depois, fora do toque
-    if (p && p.catch) p.catch(() => {});
-    waitUntil(audioReady, API_WAIT + CLIP_WAIT).then(() => waitUntil(ctxLive, 2000)).then(go);
-  }
-  function go() {
-    if (phase === 'play' || phase === 'error') return;
-    phase = 'play';
-    box.classList.add('vs-on');
-    showOv('');
-    // slot ainda sem fala (download lento): usa a genérica até a definitiva chegar
-    slots.forEach(s => { if (!s.clip) genClip(s).then(c => { if (c) setClip(s, c); }); });
-    v.loop = false; v.muted = false;
-    seekTo(startAt);
-    play();
-  }
-  function play() {
-    playFrom = v.currentTime; playAt = now();
-    const p = v.play();
-    if (p && p.catch) p.catch(() => {});       // recusou: o tick mostra "Tap to continue"
-  }
-  function waitUntil(cond, ms) {
-    const t0 = now();
-    return new Promise(ok => (function poll() { if (cond() || now() - t0 > ms) ok(); else setTimeout(poll, 40); })());
-  }
-
-  
-  v.addEventListener('playing', () => { waiting = false; if (phase === 'preview') track('vsl_preview'); tick(); });
-  v.addEventListener('waiting', () => { waiting = true; waitT = v.currentTime; tick(); });
-  v.addEventListener('pause', () => { savePos(true); tick(); });
-  v.addEventListener('seeking', () => {        // pulo de tempo (fim → começo, ajuste do hls.js…): refaz a partir do ponto novo
-    if (phase !== 'play') return;
-    stopAll(); slots.forEach(s => { s.done = false; });
-    playFrom = v.currentTime; tick();
-  });
-  v.addEventListener('ended', () => { if (phase === 'play') track('vsl_end'); savePos(true); tick(); });
-  v.addEventListener('timeupdate', () => {
-    if (phase === 'preview' && PREVIEW_LOOP_S && v.currentTime >= PREVIEW_LOOP_S) v.currentTime = 0;   // loop da prévia
-    tick();
-  });
-  v.addEventListener('error', () => { if (!hls) fail(); });   // com hls.js quem decide é o ERROR dele
-  document.addEventListener('visibilitychange', tick);
-  // tela de bloqueio / central de controle também não podem pular o vídeo
-  ['seekto', 'seekbackward', 'seekforward'].forEach(a => { try { navigator.mediaSession.setActionHandler(a, () => {}); } catch (e) {} });
-
-  
-  const fit = () => box.style.setProperty('--u', box.clientWidth / 100 + 'px');
-  fit(); window.addEventListener('resize', fit);
-  if (window.ResizeObserver) new ResizeObserver(fit).observe(box);
-
-  
-  showOv(saved ? '' : 'preview');
-  if (saved) { showRes(); track('vsl_resume_offer'); }
-  if (true) useNative(); 
-  else loadScript(HLS_JS, 15000).then(useHlsJs).catch(() => { if (!hls && nativeHls) useNative(); else fail(); });
-  (function frame() { renderCap(v.currentTime); tick(); requestAnimationFrame(frame); })();
-  setInterval(tick, 100);                      // reserva: com a aba em 2º plano o requestAnimationFrame para
 })();
-      </script>
+</script>
     </div>
 
     
@@ -1417,10 +862,9 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
       // quiz_ms = em que ponto do vídeo a pessoa clicou (barras de clique na curva de retenção).
       // Só com o vídeo tocando COM SOM: na prévia muda o tempo fica em loop de 0 a 30 s e não é
       // um ponto assistido (quem volta com a página já revelada clica sem ligar o som).
-      const vid = document.getElementById('vsVideo');
       if (window.__ttfStage) window.__ttfStage('seed', amt);
       qz('seed_click', { quiz_amount: parseInt(amt, 10), quiz_answer: 'seed_' + amt,
-                         quiz_ms: vid && !vid.muted && vid.currentTime > 0 ? Math.round(vid.currentTime * 1000) : undefined });
+                         quiz_ms: window.__vslTime > 0 ? Math.round(window.__vslTime * 1000) : undefined });
       if(!prefillEmail || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
       const t0 = Date.now();
@@ -1667,15 +1111,14 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
   @keyframes rvPulse { 0%,100% { box-shadow:0 0 0 rgba(243,195,78,0); } 50% { box-shadow:0 0 22px rgba(243,195,78,.55); } }
 </style>
 <script>
+/* Revelação das sementes: escondidas até o pitch (8:55 = 535 s) e abertas pelo tempo do VTurb. */
 (function () {
   var qs = new URLSearchParams(location.search);
-  // segundos do vídeo: 535 na VSL v2.1 (14:20); no braço B do teste A/B (VSL com depoimentos, 15:58) o mesmo ponto fica em 604,3
-  var REVELA_EM = Number(qs.get('reveal_at')) || (window.__seedVsl && window.__seedVsl.revela) || 535;
+  var REVELA_EM = Number(qs.get('reveal_at')) || 535;   // "the four seeds below this message"
   var KEY = 'seed_revealed_v21';
-  var video = document.getElementById('vsVideo');
-  var box = document.getElementById('vs');
-  if (!box) return;
-  // bloco do player = filho direto do .wrap que contém o vídeo; esconde os irmãos de baixo (menos o rodapé)
+  // ancora no bloco do player (como o original): esconde tudo que vem DEPOIS dele até o rodapé
+  var box = document.querySelector('vturb-smartplayer') || document.querySelector('.videobox');
+  if (!box || !document.getElementById('seeds')) return;
   var bloco = box;
   while (bloco.parentElement && !bloco.parentElement.classList.contains('wrap')) bloco = bloco.parentElement;
   var escondidos = [];
@@ -1686,12 +1129,12 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
   var hint = document.createElement('div');
   hint.className = 'rv-hint';
   hint.innerHTML = '&#x1F447; Your seeds are now open below';
-  hint.onclick = function () {   // rola até o primeiro alvo visível: bloco enxuto, chamada da carta ou as sementes
+  hint.onclick = function () {
     var ids = ['lean', 'chooseLead', 'seeds'], s = null;
     for (var i = 0; i < ids.length && !s; i++) { var e = document.getElementById(ids[i]); if (e && e.offsetParent !== null) s = e; }
-    if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   bloco.parentNode.insertBefore(hint, bloco.nextSibling);
-
   var revelado = false;
   function revela(origem) {
     if (revelado) return; revelado = true;
@@ -1699,26 +1142,17 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
     if (origem === 'tempo') hint.style.display = 'block';
     try { localStorage.setItem(KEY, '1'); } catch (e) {}
     if (window.__ttfStage) window.__ttfStage('offer');
-    try { (window.dataLayer = window.dataLayer || []).push({ event: 'quiz_step', quiz_event: 'vsl_reveal', quiz_q: 'seed_vsl',
-          quiz_answer: origem, quiz_ms: video ? Math.round(video.currentTime * 1000) : 0 }); } catch (e) {}
+    try { (window.dataLayer = window.dataLayer || []).push({ event:'quiz_step', quiz_event:'vsl_reveal', quiz_q:'seed_vsl',
+      quiz_answer: origem, quiz_ms: Math.round((window.__vslTime || 0) * 1000), quiz_amount: undefined }); } catch (e) {}
   }
-  var ja = false;
-  try { ja = localStorage.getItem(KEY) === '1'; } catch (e) {}
-  // open=1: link dos e-mails para quem já ouviu a mensagem (as sementes aparecem direto).
-  if (ja || qs.get('reveal') === '1' || qs.get('open') === '1' || !video) { revela('antes'); return; }
+  var ja = false; try { ja = localStorage.getItem(KEY) === '1'; } catch (e) {}
+  // já assistiu antes, ou link direto para a oferta aberta
+  if (ja || qs.get('reveal') === '1' || qs.get('open') === '1') { revela('antes'); return; }
   escondidos.forEach(function (el) { el.classList.add('rv-hide'); });
-  video.addEventListener('timeupdate', function () {
-    if (!video.muted && video.currentTime >= REVELA_EM) revela('tempo');
-  });
-  // Vídeo que não carrega nunca pode esconder a oferta. O sinal é o player desistir (classe "vs-error"
-  // no botão): erro que o hls.js recupera sozinho não conta. Confere também o estado ATUAL, porque o
-  // player começa a carregar bem antes deste script e o erro pode já ter acontecido.
-  var hit = document.getElementById('vsHit');
-  function falhou() { return !!(hit && hit.classList.contains('vs-error')); }
-  if (hit && window.MutationObserver) new MutationObserver(function () { if (falhou()) revela('erro'); })
-    .observe(hit, { attributes: true, attributeFilter: ['class'] });
-  video.addEventListener('error', function () { setTimeout(function () { if (falhou() || !hit) revela('erro'); }, 50); });
-  if (falhou()) revela('erro');
+  // o controlador do VTurb chama isto a cada timeupdate
+  window.__vzSeedReveal = function (t) { if (t >= REVELA_EM) revela('tempo'); };
+  // à prova de falha: se o player do VTurb não aparecer em 30 s, mostra a oferta (nunca esconder para sempre)
+  setTimeout(function () { try { var sp = window.smartplayer; if (!(sp && sp.instances && sp.instances[0])) revela('sem_player'); } catch (e) { revela('sem_player'); } }, 30000);
 })();
 </script>
 
