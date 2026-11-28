@@ -763,52 +763,7 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
   
   
   
-  var CHECKOUT = 'hm';
-  
-  var CK_TRAVA = 'hm';
-  try {
-    var ckq = /[?&]ck=(hm|ds)(&|$)/.exec(location.search); if (ckq && !CK_TRAVA) CHECKOUT = ckq[1];
-    if (CK_TRAVA) CHECKOUT = CK_TRAVA;
-    var ckt = /[?&]ckt=(hm|ds)(&|$)/.exec(location.search); if (ckt) CHECKOUT = ckt[1];
-  } catch (e) {}
-  const DS = CHECKOUT === 'ds';
-  const seedLinksHm = {
-  "27": "#",
-  "47": "#",
-  "77": "#",
-  "100": "#",
-};
-  const seedLinksDs = {
-  "27": "#",
-  "47": "#",
-  "77": "#",
-  "100": "#",
-};
-  const seedLinks = {"27":"#","47":"#","77":"#","100":"#"}; 
-  
-  const PLANO_DS = { "27": "1448168", "47": "1519038", "77": "1519039", "100": "1519040" };
-  const FORA_DO_CHECKOUT = /^(plan|hide_plans|pk|me|ck|ckt|go|open|n|voz|emb|vsl|layout|reveal_at|resume)$/;
-  function planoNoLink(url, amt) {
-    try {
-      if (!DS || !PLANO_DS[amt] || !/^https:\/\/www\.checkout-ds24\.com\/product\/704124(\?|#|$)/.test(url)) return url;
-      var h = url.indexOf('#'), hash = h === -1 ? '' : url.slice(h);
-      if (h !== -1) url = url.slice(0, h);
-      var q = url.indexOf('?'), base = q === -1 ? url : url.slice(0, q);
-      var resto = (q === -1 ? '' : url.slice(q + 1)).split('&').filter(function (p) { return p && !FORA_DO_CHECKOUT.test(p.split('=')[0]); });
-      return base + '?plan=' + PLANO_DS[amt] + '&hide_plans=1' + (resto.length ? '&' + resto.join('&') : '') + hash;
-    } catch (e) { return url; }
-  }
-  
-  if (DS) try {
-    var qsU = new URLSearchParams(location.search), trU = {};
-    try { trU = JSON.parse(localStorage.getItem('pf_tracking') || '{}') || {}; } catch (e) {}
-    var utmU = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'].map(function (k) {
-      var v = qsU.get(k) || trU[k]; return v ? '&' + k + '=' + encodeURIComponent(String(v).slice(0, 200)) : ''; }).join('');
-    
-    var idU = function (k) { var v = String(qsU.get(k) || trU[k] || ''), i = v.lastIndexOf('|'); v = i === -1 ? '' : v.slice(i + 1); return /^[0-9]{6,25}$/.test(v) ? v : ''; };
-    var sidU = [['sid3', 'utm_campaign'], ['sid4', 'utm_medium'], ['sid5', 'utm_content']].map(function (p) { var v = idU(p[1]); return v ? '&' + p[0] + '=' + v : ''; }).join('');
-    Object.keys(seedLinks).forEach(function (k) { seedLinks[k] += utmU + sidU; });
-  } catch (e) {}
+  const seedLinks = {"27":"https://checkout.kashpay.com/checkout/checkout-1795836091200","47":"https://checkout.kashpay.com/checkout/checkout-1795836161337","77":"https://checkout.kashpay.com/checkout/checkout-1795836255756","100":"https://checkout.kashpay.com/checkout/checkout-1795836301827"};
   
   const seedImgs = { "27":"/thrive/media/seed/seed-27.webp", "47":"/thrive/media/seed/seed-47.webp", "77":"/thrive/media/seed/seed-77.webp", "100":"/thrive/media/seed/seed-87.webp" };
   
@@ -837,10 +792,11 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
     prefillEmail = e;
     try { $('sendTo').textContent = '📩 Your Script will be delivered to ' + e; $('sendTo').style.display = 'block'; } catch (x) {}
   };
+  function addParam(url, k, v){ return url + (url.indexOf('?') === -1 ? '?' : '&') + k + '=' + encodeURIComponent(v); }
   function withPrefill(url){
-    var kE = DS ? 'sid1' : 'src';
-    if (marcaOrigem && !new RegExp('[?&]' + kE + '=').test(url)) url += '&' + kE + '=' + encodeURIComponent(marcaOrigem);
-    return prefillEmail ? url + '&email=' + encodeURIComponent(prefillEmail) : url;
+    var kE = 'src';
+    if (marcaOrigem && !new RegExp('[?&]' + kE + '=').test(url)) url = addParam(url, kE, marcaOrigem);
+    return prefillEmail ? addParam(url, 'email', prefillEmail) : url;
   }
   $('seeds').innerHTML = ["27","47","77","100"].map(a =>
     '<div class="seed-block">'+
@@ -849,8 +805,8 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
     '</div>').join('');
   // quem veio do e-mail ou do WhatsApp sem o e-mail salvo neste aparelho também leva a marca de origem
   if (marcaOrigem) document.querySelectorAll('#seeds [data-amt]').forEach(function (el) {
-    var kE = DS ? 'sid1' : 'src';
-    if (!new RegExp('[?&]' + kE + '=').test(el.href)) el.href += '&' + kE + '=' + encodeURIComponent(marcaOrigem);
+    var kE = 'src';
+    if (!new RegExp('[?&]' + kE + '=').test(el.href)) el.href = addParam(el.href, kE, marcaOrigem);
   });
   if(prefillEmail){
     $('sendTo').textContent = '📩 Your Script will be delivered to ' + prefillEmail;
@@ -860,7 +816,6 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
   document.querySelectorAll('[data-amt]').forEach(b=>{
     b.addEventListener('click', (e)=>{
       const amt = b.getAttribute('data-amt');
-      try { const certo = planoNoLink(b.href, amt); if (certo !== b.href) b.href = certo; } catch (x) {}
       // quiz_ms = em que ponto do vídeo a pessoa clicou (barras de clique na curva de retenção).
       // Só com o vídeo tocando COM SOM: na prévia muda o tempo fica em loop de 0 a 30 s e não é
       // um ponto assistido (quem volta com a página já revelada clica sem ligar o som).
@@ -871,7 +826,7 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
       e.preventDefault();
       const t0 = Date.now();
       (function go(){
-        if(/[?&](sck|cid)=/.test(b.href) || Date.now() - t0 >= 400) (window.__ttfEmb ? window.top : window).location.href = withPrefill(planoNoLink(b.href, amt));
+        if(/[?&](sck|cid)=/.test(b.href) || Date.now() - t0 >= 400) (window.__ttfEmb ? window.top : window).location.href = withPrefill(b.href);
         else setTimeout(go, 20);
       })();
     });
