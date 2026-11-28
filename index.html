@@ -21,62 +21,99 @@
     background:linear-gradient(rgba(6,4,2,.80), rgba(6,4,2,.90)), url(/thrive/media/thrive/background.jpg) center top / cover no-repeat #0b0805; }
   main { max-width:560px; margin:0 auto; padding:0 18px; }
   section { padding:30px 0; }
+  .center { text-align:center; }
+
+  /* ---- herói ---- */
   .hero { padding:34px 0 26px; text-align:center; }
   .logo { display:block; width:190px; height:auto; margin:0 auto 14px; }
   .kicker { margin:0 0 8px; font-size:13.5px; letter-spacing:3px; color:var(--gold); font-weight:bold; }
   h1 { margin:0 0 12px; font-size:31px; line-height:1.2; text-shadow:0 2px 10px #000; }
   .sub { margin:0 auto 22px; max-width:470px; color:#ffe9ab; font-size:18.5px; }
+
   h2 { margin:0 0 16px; font-size:24px; line-height:1.25; color:var(--gold); text-align:center; }
-  .cta { display:block; text-align:center; text-decoration:none; font-weight:bold; font-size:21px; padding:17px 18px;
+
+  .cta { display:block; width:100%; max-width:440px; margin:0 auto; text-align:center; text-decoration:none; font-weight:bold; font-size:21px; padding:17px 18px;
     border-radius:14px; background:linear-gradient(180deg, var(--gold2), var(--gold3)); color:var(--ink);
     box-shadow:0 5px 0 var(--edge), 0 0 26px rgba(243,195,78,.28); }
   .cta:active { transform:translateY(2px); box-shadow:0 2px 0 var(--edge); }
   .cta:focus-visible { outline:3px solid var(--cream); outline-offset:3px; }
   .micro { margin:12px 0 0; text-align:center; font-size:15px; color:var(--muted); font-style:italic; }
+
   .verse { margin:0; padding:18px 20px; border-left:4px solid var(--gold); background:rgba(21,17,10,.78); border-radius:0 12px 12px 0;
     font-size:19px; font-style:italic; color:#ffe9ab; }
   .verse cite { display:block; margin-top:8px; font-size:14.5px; font-style:normal; letter-spacing:1px; color:var(--muted); }
-  .items { display:grid; gap:12px; margin:0; padding:0; list-style:none; }
-  .items li { padding:15px 16px; border:1px solid rgba(243,195,78,.35); border-radius:12px; background:rgba(16,11,3,.72); }
-  .items b { display:block; color:var(--gold); font-size:18.5px; margin-bottom:2px; }
-  .steps { counter-reset:passo; display:grid; gap:14px; margin:0; padding:0; list-style:none; }
+
+  .items { display:grid; gap:12px; margin:0 auto; padding:0; list-style:none; max-width:860px; }
+  .items li { padding:16px 18px; border:1px solid rgba(243,195,78,.35); border-radius:12px; background:rgba(16,11,3,.72); }
+  .items b { display:block; color:var(--gold); font-size:18.5px; margin-bottom:3px; }
+
+  .steps { counter-reset:passo; display:grid; gap:16px; margin:0 auto; padding:0; list-style:none; max-width:860px; }
   .steps li { counter-increment:passo; position:relative; padding:2px 0 0 54px; min-height:40px; }
   .steps li::before { content:counter(passo); position:absolute; left:0; top:0; width:40px; height:40px; border-radius:50%;
     display:grid; place-items:center; font-weight:bold; color:var(--ink); background:linear-gradient(180deg, var(--gold2), var(--gold3)); }
   .steps b { display:block; color:var(--cream); }
   .steps span { color:var(--muted); }
-  .card { padding:20px 18px; border:2px solid var(--gold); border-radius:16px; background:rgba(8,6,3,.85); box-shadow:0 0 30px rgba(243,195,78,.18); }
+
+  .card { max-width:620px; margin:0 auto; padding:22px 20px; border:2px solid var(--gold); border-radius:16px; background:rgba(8,6,3,.85); box-shadow:0 0 30px rgba(243,195,78,.18); }
   .card ul { margin:0 0 16px; padding:0; list-style:none; display:grid; gap:12px; }
   .card li b { color:var(--gold); }
   .price { margin:0 0 12px; padding:13px 14px; border-radius:12px; background:rgba(243,195,78,.1); border:1px dashed rgba(243,195,78,.55); font-size:17px; }
   .guarantee { margin:0; font-size:16.5px; color:var(--muted); }
+
+  .faq { max-width:720px; margin:0 auto; }
   details { border-bottom:1px solid rgba(243,195,78,.25); padding:12px 0; }
   summary { cursor:pointer; font-weight:bold; color:var(--cream); list-style:none; padding-right:28px; position:relative; }
   summary::-webkit-details-marker { display:none; }
   summary::after { content:"+"; position:absolute; right:4px; top:-2px; color:var(--gold); font-size:22px; }
   details[open] summary::after { content:"–"; }
   details p { margin:8px 0 0; color:var(--muted); }
-  .final { text-align:center; }
-  footer { max-width:560px; margin:10px auto 0; padding:22px 18px 34px; border-top:1px solid rgba(243,195,78,.2);
+
+  footer { max-width:720px; margin:10px auto 0; padding:22px 18px 34px; border-top:1px solid rgba(243,195,78,.2);
     font-size:13px; line-height:1.5; color:#a89a70; text-align:center; }
   footer p { margin:0 0 10px; }
-  @media (min-width:600px) { h1 { font-size:36px; } .items { grid-template-columns:1fr 1fr; } }
+
+  /* ---- computador ---- */
+  @media (min-width:880px) {
+    main { max-width:1060px; padding:0 32px; }
+    section { padding:48px 0; }
+    .hero { padding:48px 0 30px; }
+    .logo { width:150px; margin-bottom:10px; }
+    h1 { font-size:46px; }
+    h2 { font-size:32px; margin-bottom:28px; }
+    /* herói em duas colunas: texto à esquerda, versículo à direita */
+    .hero-grid { display:grid; grid-template-columns:1.05fr .95fr; gap:40px; align-items:center; text-align:left; max-width:980px; margin:0 auto; }
+    .hero-copy h1 { margin-top:0; }
+    .hero-copy .sub { margin-left:0; font-size:20px; max-width:none; }
+    .hero-copy .cta { margin-left:0; }
+    .hero-copy .micro { text-align:left; }
+    .verse { font-size:22px; padding:26px 28px; border-radius:0 16px 16px 0; }
+    .items { grid-template-columns:1fr 1fr; gap:18px; max-width:980px; }
+    .items li { padding:22px 24px; }
+    .steps { grid-template-columns:repeat(3,1fr); gap:28px; max-width:980px; }
+    .steps li { padding:56px 0 0; min-height:0; }
+    .steps li::before { left:0; top:0; }
+    .card { max-width:760px; padding:30px 32px; }
+    .card ul { grid-template-columns:1fr 1fr; gap:16px 26px; }
+    .card .price, .card .guarantee { grid-column:1 / -1; }
+    .card ul { display:grid; }
+  }
 </style>
 </head>
 <body>
 <main>
   <section class="hero">
     <img class="logo" src="/thrive/media/thrive/logo-flourish.webp" width="800" height="733" alt="Time To Flourish">
-    <p class="kicker">✦ THE SACRED TEST ✦</p>
-    <h1>Seven minutes with God's Word, every morning</h1>
-    <p class="sub">Take the Sacred Test and receive a daily reading of prayers, scriptures and declarations — prepared from your own answers, to read aloud each morning.</p>
-    <a class="cta" data-test href="/thrive/">Take the Sacred Test</a>
-    <p class="micro">Free · about 3 minutes · 21 short questions</p>
-  </section>
-
-  <section>
-    <blockquote class="verse">“It is of the LORD's mercies that we are not consumed, because his compassions fail not. They are new every morning: great is thy faithfulness.”
-      <cite>LAMENTATIONS 3:22–23</cite></blockquote>
+    <p class="kicker center">✦ THE SACRED TEST ✦</p>
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <h1>Seven minutes with God's Word, every morning</h1>
+        <p class="sub">Take the Sacred Test and receive a daily reading of prayers, scriptures and declarations — prepared from your own answers, to read aloud each morning.</p>
+        <a class="cta" data-test href="/thrive/">Take the Sacred Test</a>
+        <p class="micro">Free · about 3 minutes · 21 short questions</p>
+      </div>
+      <blockquote class="verse">“It is of the LORD's mercies that we are not consumed, because his compassions fail not. They are new every morning: great is thy faithfulness.”
+        <cite>LAMENTATIONS 3:22–23</cite></blockquote>
+    </div>
   </section>
 
   <section>
@@ -113,16 +150,18 @@
 
   <section>
     <h2>Questions</h2>
-    <details><summary>Is the Sacred Test free?</summary><p>Yes. The test is free and takes about 3 minutes. At the end, you decide whether you want to receive your complete Script.</p></details>
-    <details><summary>Do I need to install an app?</summary><p>No. Your Script and the Blueprint arrive by email, ready to read on your phone, tablet or computer.</p></details>
-    <details><summary>How long is the daily reading?</summary><p>About 7 minutes, read out loud each morning, for 7 days in a row — and you can keep reading it for as long as you like.</p></details>
-    <details><summary>What if it's not for me?</summary><p>You are covered by the 90-day guarantee: write us one line and receive your money back.</p></details>
+    <div class="faq">
+      <details><summary>Is the Sacred Test free?</summary><p>Yes. The test is free and takes about 3 minutes. At the end, you decide whether you want to receive your complete Script.</p></details>
+      <details><summary>Do I need to install an app?</summary><p>No. Your Script and the Blueprint arrive by email, ready to read on your phone, tablet or computer.</p></details>
+      <details><summary>How long is the daily reading?</summary><p>About 7 minutes, read out loud each morning, for 7 days in a row — and you can keep reading it for as long as you like.</p></details>
+      <details><summary>What if it's not for me?</summary><p>You are covered by the 90-day guarantee: write us one line and receive your money back.</p></details>
+    </div>
   </section>
 
-  <section class="final">
+  <section class="center">
     <h2>Your first morning can be tomorrow</h2>
     <a class="cta" data-test href="/thrive/">Take the Sacred Test</a>
-    <p class="micro">Free · about 3 minutes</p>
+    <p class="micro center">Free · about 3 minutes</p>
   </section>
 </main>
 <footer>
