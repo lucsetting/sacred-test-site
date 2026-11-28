@@ -267,6 +267,14 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
     .info { font-size:18px; } .seed-cta { font-size:19px; padding:15px; }
     .site-footer { font-size:13px; } .foot-links { gap:12px 16px; }
   }
+
+  /* sementes: espaço só com margens. Em iPhone com Safari mais antigo, o "gap" da grade/flex somado à imagem
+     quadrada (aspect-ratio) dava errado e o botão de uma semente colava na imagem da semente de baixo. */
+  .seeds { row-gap:0; }
+  .seed-block { display:block; margin-bottom:30px; }
+  .seed-cta { margin-top:12px; }
+  .lean .seed-block { margin-bottom:0; }
+  .lean .seed-cta { margin-top:0; }
 </style>
 
 <script>
