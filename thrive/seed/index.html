@@ -1594,7 +1594,7 @@ window.__embSolta=function(){var h=window.__embHold;window.__embHold=null;(h||[]
   }
 
   
-  const LAYOUT = new URLSearchParams(location.search).get('layout') === 'carta' ? 'carta' : 'enxuto';
+  const LAYOUT = new URLSearchParams(location.search).get('layout') === 'enxuto' ? 'enxuto' : 'carta';   // padrão = montagem antiga (newsmethod1); ?layout=enxuto = cartões
   if(LAYOUT === 'enxuto'){
     ['portals','letter','letter2','winners','cleanInfo','warningBox','chooseLead','chooseHead','sameNote']
       .forEach(id => { const e = $(id); if(e) e.style.display = 'none'; });
